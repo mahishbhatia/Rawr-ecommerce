@@ -9,12 +9,12 @@ catalog_bp = Blueprint('catalog', __name__)
 def home():
     product = Product.query.first()
     return jsonify({
-        'product': {'name': product.name, 'price': f'₹{product.price}'},
+        'product': {'name': 'Protein Choco Crunch', 'price': '₹120'},
         'nutrition': [
-            {'value': '20g', 'label': 'Protein', 'detail': 'High-quality whey per bar'},
-            {'value': '220', 'label': 'Calories', 'detail': 'Balanced fuel for active days'},
-            {'value': '6', 'label': 'Natural ingredients', 'detail': 'Every ingredient has a purpose'},
-            {'value': '0g', 'label': 'Added sugar', 'detail': 'Sweetened naturally'}],
+            {'value': '15g', 'label': 'Protein', 'detail': 'In every 60g bar'},
+            {'value': '272', 'label': 'Energy', 'detail': 'kcal per bar'},
+            {'value': '0g', 'label': 'Added sugar', 'detail': 'Naturally occurring only'},
+            {'value': '60g', 'label': 'Bar weight', 'detail': 'Convenient everyday fuel'}],
         'reviews': [
             {'name': 'Anaya S.', 'role': 'CrossFit Coach', 'quote': 'The first bar my clients actually enjoy and still trust before training.'},
             {'name': 'Karan M.', 'role': 'Product Designer', 'quote': 'No sugar crash, clean focus, and the crunch is unreal.'},

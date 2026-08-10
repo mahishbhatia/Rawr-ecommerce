@@ -2,9 +2,9 @@
 import { ref } from 'vue'
 const open = ref(0)
 const items = [
- ['Is RAWR suitable as a pre-workout snack?', 'Yes. It is designed for steady energy with protein and natural carbohydrates before or after training.'],
- ['Does RAWR contain refined sugar or preservatives?', 'No. It is naturally sweetened with dates and honey, without refined sugar or synthetic preservatives.'],
- ['How often can I consume RAWR?', 'RAWR fits daily routines: post-workout, midday fuel, or whenever you need reliable nutrition.']
+ ['When can I have RAWR?', 'Before or after a workout, between classes, during a busy workday, while travelling, or as an afternoon snack. Basically, anytime you RAWR.'],
+ ['What is the shelf life and how should I store it?', 'RAWR is freshly made in small batches without added preservatives, so it has an approximate shelf life of 8-10 days. Store it in a cool, dry place.'],
+ ['How do I order and pay?', 'Send us a DM on Instagram at @rawr_it to place your order. Payments are currently accepted through UPI, and delivery is available across India with separate shipping charges.']
 ]
 </script>
 <template><section class="section"><div class="wrap faq"><div><p class="eyebrow">No fine print</p><h2>Questions,<br>answered.</h2></div><div class="items"><button v-for="([question, answer], index) in items" :key="question" @click="open = open === index ? -1 : index"><span>{{ question }}</span><b>{{ open === index ? '−' : '+' }}</b><p v-if="open === index">{{ answer }}</p></button></div></div></section></template>

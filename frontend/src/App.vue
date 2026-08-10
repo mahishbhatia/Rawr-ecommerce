@@ -1,46 +1,43 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import SiteHeader from './components/SiteHeader.vue'
 import HeroSection from './components/HeroSection.vue'
 import ProductStory from './components/ProductStory.vue'
+import IngredientsSection from './components/IngredientsSection.vue'
 import NutritionGrid from './components/NutritionGrid.vue'
 import ReviewSection from './components/ReviewSection.vue'
 import FaqSection from './components/FaqSection.vue'
 import SiteFooter from './components/SiteFooter.vue'
-
-const site = ref(null)
-const fallback = {
-  product: { name: 'RAWR Protein Choco Crunch', price: '₹249', image: '/../../assets/desktop/product-main.jpeg' },
-  nutrition: [
-    { value: '20g', label: 'Protein', detail: 'High-quality whey per bar' },
-    { value: '220', label: 'Calories', detail: 'Balanced fuel for active days' },
-    { value: '6', label: 'Natural ingredients', detail: 'Every ingredient has a purpose' },
-    { value: '0g', label: 'Added sugar', detail: 'Sweetened naturally' }
-  ],
-  reviews: [
-    { name: 'Anaya S.', role: 'CrossFit Coach', quote: 'The first bar my clients actually enjoy and still trust before training.' },
-    { name: 'Karan M.', role: 'Product Designer', quote: 'No sugar crash, clean focus, and the crunch is unreal.' },
-    { name: 'Rhea P.', role: 'Marathon Runner', quote: 'I keep one in every bag. It tastes real and sits light.' }
-  ]
-}
-
-onMounted(async () => {
-  try {
-    const response = await fetch('/api/catalog/home')
-    if (response.ok) site.value = await response.json()
-  } catch (_) { /* Flask API may be started separately during UI development. */ }
-  site.value ||= fallback
-})
+import CheckoutModal from './components/CheckoutModal.vue'
+import AdminPortal from './components/AdminPortal.vue'
+import aboutImage from '../../assets/desktop/hero-slide-3.webp'
+const page=ref(location.pathname==='/admin'?'admin':['cart','account'].includes(location.hash.slice(1))?location.hash.slice(1):'home')
+const user=ref(null),cart=ref([]),orders=ref([]),authError=ref(''),authMode=ref('login'),form=ref({email:'',password:''}),checkoutOpen=ref(false),issueFor=ref(null),issueMessage=ref(''),issueError=ref(''),googleSlot=ref(null)
+const product={name:'Protein Choco Crunch',price:'₹120'},nutrition=[{value:'15g',label:'Protein',detail:'In every 60g bar'},{value:'272',label:'Energy',detail:'kcal per bar'},{value:'0g',label:'Added sugar',detail:'Naturally occurring only'},{value:'60g',label:'Bar weight',detail:'Convenient everyday fuel'}],reviews=[{name:'Anaya S.',role:'Customer',quote:'A clean, convenient snack that fits easily into my day.'},{name:'Karan M.',role:'Customer',quote:'The choco crunch taste makes protein feel like a treat.'},{name:'Rhea P.',role:'Customer',quote:'I reach for it after training and between busy classes.'}]
+const cartCount=computed(()=>cart.value.reduce((sum,item)=>sum+item.quantity,0)),cartTotal=computed(()=>cart.value.reduce((sum,item)=>sum+item.quantity*item.price,0))
+const request=async(path,options={})=>{const response=await fetch(path,{credentials:'same-origin',headers:{'Content-Type':'application/json',...(options.headers||{})},...options}),data=response.status===204?null:await response.json();if(!response.ok)throw new Error(data.error||'Something went wrong.');return data}
+const go=async next=>{if(next==='admin'){page.value='admin';history.pushState({},'','/admin');return}if(['cart','account'].includes(next)){page.value=next;history.pushState({},'',`#${next}`);window.scrollTo({top:0,behavior:'smooth'});await nextTick();renderGoogleButton();return}page.value='home';history.pushState({},'',next==='home'?'#':`#${next}`);await nextTick();document.getElementById(next==='home'?'top':next)?.scrollIntoView({behavior:'smooth',block:'start'})}
+const loadCart=async()=>{try{cart.value=(await request('/api/cart/')).items}catch{cart.value=[]}}
+const loadOrders=async()=>{if(user.value)orders.value=(await request('/api/orders/history')).orders}
+const addCart=async()=>{if(!user.value)return go('account');cart.value=(await request('/api/cart/',{method:'POST',body:JSON.stringify({quantity:1})})).items;go('cart')}
+const removeCart=async id=>{await request(`/api/cart/${id}`,{method:'DELETE'});await loadCart()}
+const updateQuantity=async(item,quantity)=>{if(quantity<1)return removeCart(item.id);cart.value=(await request(`/api/cart/${item.id}`,{method:'PATCH',body:JSON.stringify({quantity})})).items}
+const authenticate=async()=>{authError.value='';try{user.value=(await request(`/api/auth/${authMode.value==='login'?'login':'register'}`,{method:'POST',body:JSON.stringify(form.value)})).user;await loadCart();await loadOrders();go('account')}catch(error){authError.value=error.message}}
+const logout=async()=>{await request('/api/auth/logout',{method:'POST'});user.value=null;cart.value=[];orders.value=[];go('home')}
+const checkoutComplete=async()=>{checkoutOpen.value=false;await loadCart();await loadOrders();go('account')}
+const raiseIssue=async order=>{issueError.value='';try{await request(`/api/orders/${order.id}/tickets`,{method:'POST',body:JSON.stringify({message:issueMessage.value})});issueFor.value=null;issueMessage.value='';await loadOrders()}catch(error){issueError.value=error.message}}
+const googleLogin=async({credential})=>{authError.value='';try{user.value=(await request('/api/auth/google',{method:'POST',body:JSON.stringify({credential})})).user;await loadCart();await loadOrders();go('account')}catch(error){authError.value=error.message}}
+const renderGoogleButton=()=>{if(page.value!=='account'||user.value||!window.google)return;let slot=document.querySelector('.google-login-slot');if(!slot){const form=document.querySelector('.narrow form');if(!form)return;slot=document.createElement('div');slot.className='google-login-slot';form.after(slot)}slot.replaceChildren();window.google.accounts.id.renderButton(slot,{theme:'outline',size:'large',width:280,text:'continue_with'})}
+const loadGoogle=async()=>{try{const config=await request('/api/auth/google/config');if(!config.enabled)return;await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='https://accounts.google.com/gsi/client';script.async=true;script.onload=resolve;script.onerror=reject;document.head.appendChild(script)});window.google.accounts.id.initialize({client_id:config.clientId,callback:googleLogin,auto_select:false});await nextTick();renderGoogleButton()}catch{}}
+onMounted(async()=>{window.addEventListener('popstate',async()=>{page.value=location.pathname==='/admin'?'admin':['cart','account'].includes(location.hash.slice(1))?location.hash.slice(1):'home';await nextTick();renderGoogleButton()});try{user.value=(await request('/api/auth/me')).user;if(user.value){await loadCart();await loadOrders()}}catch{}await loadGoogle()})
 </script>
-
 <template>
-  <SiteHeader />
-  <main v-if="site">
-    <HeroSection :product="site.product" />
-    <ProductStory :product="site.product" />
-    <NutritionGrid :stats="site.nutrition" />
-    <ReviewSection :reviews="site.reviews" />
-    <FaqSection />
+  <SiteHeader v-if="page!=='admin'" :page="page" :cart-count="cartCount" :signed-in="!!user" @navigate="go" @logout="logout"/>
+  <main>
+    <AdminPortal v-if="page==='admin'"/>
+    <template v-else-if="page==='home'"><HeroSection @navigate="go"/><ProductStory :product="product" @add-cart="addCart"/><NutritionGrid :stats="nutrition"/><IngredientsSection/><section id="about" class="about"><div class="wrap about-copy"><p class="eyebrow">Our story</p><h2>Born in college.<br>Built for real life.</h2><p>RAWR started with students from BIZMIND, the entrepreneurship cell of MAIMS, who saw a gap in protein snacking.</p></div><img class="about-image" :src="aboutImage" alt="RAWR protein bar"></section><ReviewSection :reviews="reviews"/><FaqSection/></template>
+    <section v-else-if="page==='cart'" class="page cart-page"><div class="wrap"><div class="cart-heading"><p class="eyebrow">Your cart</p><h1>Ready when you are.</h1></div><div v-if="!user" class="cart-empty"><h2>Your cart is waiting.</h2><p>Sign in to see and save the items you love.</p><button class="button primary" @click="go('account')">Login or register</button></div><div v-else-if="!cart.length" class="cart-empty"><h2>Your cart is empty.</h2><p>Add a clean, protein-packed snack whenever you're ready.</p><button class="button primary" @click="go('shop')">Shop RAWR</button></div><div v-else class="cart-layout"><div class="cart-items"><article v-for="item in cart" :key="item.id" class="cart-item"><img src="../../assets/desktop/product-main.jpeg" alt="Protein Choco Crunch"><div class="item-copy"><p class="eyebrow">RAWR protein bar</p><h2>{{item.name}}</h2><p>60g bar · 15g protein · 0g added sugar</p><b>₹{{item.price}}</b></div><div class="quantity"><button @click="updateQuantity(item,item.quantity-1)">−</button><span>{{item.quantity}}</span><button @click="updateQuantity(item,item.quantity+1)">+</button></div><div class="item-total"><b>₹{{item.price*item.quantity}}</b><button class="remove" @click="removeCart(item.id)">Remove</button></div></article></div><aside class="order-summary"><p class="eyebrow">Order summary</p><h2>Almost yours.</h2><p class="summary-row"><span>Subtotal</span><b>₹{{cartTotal}}</b></p><p class="summary-row"><span>Shipping</span><b>₹59</b></p><div class="summary-total"><span>Total</span><b>₹{{cartTotal+59}}</b></div><button class="button primary" @click="checkoutOpen=true">Checkout securely</button></aside></div></div></section>
+    <section v-else class="page"><div class="wrap narrow"><template v-if="!user"><p class="eyebrow">Your account</p><h1>{{authMode==='login'?'Welcome back.':'Create your account.'}}</h1><form @submit.prevent="authenticate"><label>Email<input v-model="form.email" type="email" required></label><label>Password<input v-model="form.password" type="password" minlength="8" required></label><p v-if="authError" class="error">{{authError}}</p><button class="button primary">{{authMode==='login'?'Sign in with email':'Create account'}}</button></form><button class="switch" @click="authMode=authMode==='login'?'register':'login'">{{authMode==='login'?'Need an account? Register':'Already have an account? Sign in'}}</button></template><template v-else><p class="eyebrow">Your account</p><h1>Order history</h1><p class="account-email">{{user.email}}</p><article v-for="order in orders" :key="order.id" class="account-order"><div><b>Order #{{order.id}}</b><span>{{new Date(order.createdAt).toLocaleDateString()}} · {{order.quantity}} bar{{order.quantity===1?'':'s'}}</span></div><b class="order-status">{{order.status}}</b><p v-if="order.address">{{order.address}}</p><div v-for="ticket in order.tickets" :key="ticket.id" class="ticket-state">Issue #{{ticket.id}}: {{ticket.status}}</div><button class="raise-issue" @click="issueFor=issueFor===order.id?null:order.id">Raise an issue</button><form v-if="issueFor===order.id" class="issue-form" @submit.prevent="raiseIssue(order)"><textarea v-model="issueMessage" required minlength="8" placeholder="Tell us what went wrong"></textarea><p v-if="issueError" class="error">{{issueError}}</p><button class="button primary">Submit issue</button></form></article><p v-if="!orders.length" class="note">Your completed orders will appear here.</p></template></div></section>
   </main>
-  <SiteFooter />
+  <SiteFooter v-if="page!=='admin'"/><CheckoutModal v-if="checkoutOpen" :total="cartTotal" @close="checkoutOpen=false" @complete="checkoutComplete"/>
 </template>
