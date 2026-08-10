@@ -1,10 +1,9 @@
 import os
 import secrets
-import smtplib
 from collections import Counter
 from datetime import datetime, timedelta
-from email.message import EmailMessage
 
+import requests
 from flask import Blueprint, jsonify, request, session
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -118,24 +117,28 @@ def analytics():
 def request_otp():
     if not OTP_EMAIL:
         return jsonify({'error': 'Admin OTP recipient is not configured.'}), 503
+    resend_key, resend_from = os.getenv('RESEND_API_KEY'), os.getenv('RESEND_FROM')
+    if not all((resend_key, resend_from)):
+        return jsonify({'error': 'Email is not configured. Set RESEND_API_KEY and RESEND_FROM to send the OTP.'}), 503
     code = f'{secrets.randbelow(1000000):06d}'
+    try:
+        response = requests.post(
+            'https://api.resend.com/emails',
+            headers={'Authorization': f'Bearer {resend_key}', 'Content-Type': 'application/json'},
+            json={
+                'from': resend_from,
+                'to': [OTP_EMAIL],
+                'subject': 'Your RAWR admin password OTP',
+                'text': f'Your RAWR admin password OTP is {code}. It expires in 10 minutes.',
+            },
+            timeout=15,
+        )
+        response.raise_for_status()
+    except requests.RequestException:
+        return jsonify({'error': 'Unable to send the OTP email. Check the Resend configuration.'}), 502
     set_setting('otp_hash', generate_password_hash(code))
     set_setting('otp_expires', (datetime.utcnow() + timedelta(minutes=10)).isoformat())
     db.session.commit()
-    host, username, password = os.getenv('SMTP_HOST'), os.getenv('SMTP_USERNAME'), os.getenv('SMTP_PASSWORD')
-    if not all((host, username, password)):
-        return jsonify({'error': 'Email is not configured. Set SMTP_HOST, SMTP_USERNAME and SMTP_PASSWORD to send the OTP.'}), 503
-    message = EmailMessage()
-    message['Subject'] = 'Your RAWR admin password OTP'
-    message['From'] = os.getenv('SMTP_FROM', username)
-    message['To'] = OTP_EMAIL
-    message.set_content(f'Your RAWR admin password OTP is {code}. It expires in 10 minutes.')
-    try:
-        with smtplib.SMTP_SSL(host, int(os.getenv('SMTP_PORT', '465'))) as smtp:
-            smtp.login(username, password)
-            smtp.send_message(message)
-    except Exception:
-        return jsonify({'error': 'Unable to send the OTP email. Check SMTP configuration.'}), 502
     return jsonify({'sentTo': OTP_EMAIL})
 
 

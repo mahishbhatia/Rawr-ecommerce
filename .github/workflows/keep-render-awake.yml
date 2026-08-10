@@ -1,0 +1,20 @@
+name: Keep Render awake
+
+on:
+  schedule:
+    # Every ten minutes, offset from the top of the hour to avoid schedule congestion.
+    - cron: '7,17,27,37,47,57 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the public health endpoint
+        env:
+          RENDER_APP_URL: ${{ secrets.RENDER_APP_URL }}
+        run: |
+          test -n "$RENDER_APP_URL"
+          curl --fail --silent --show-error --retry 2 --max-time 30 "$RENDER_APP_URL/healthz"

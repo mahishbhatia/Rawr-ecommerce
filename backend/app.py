@@ -71,6 +71,11 @@ def create_app():
         if production: response.headers.setdefault('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
         return response
 
+    @app.get('/healthz')
+    def healthz():
+        """Lightweight liveness endpoint used by the external uptime check."""
+        return jsonify({'status': 'ok'})
+
     @app.get('/api/<path:path>')
     def unknown_api(path):
         return jsonify({'error': 'API endpoint not found.'}), 404
