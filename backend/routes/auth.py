@@ -7,7 +7,7 @@ from extensions import db
 from models.user import User
 
 auth_bp = Blueprint('auth', __name__)
-GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '959273229128-57qnto70693dkgbrgdp6p3mnse28g911.apps.googleusercontent.com')
+GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
 
 def user_payload(user):
     return {'id': user.id, 'email': user.email}
@@ -23,7 +23,7 @@ def register():
         return jsonify({'error': 'An account already exists for this email.'}), 409
     user = User(email=email, password_hash=generate_password_hash(password))
     db.session.add(user); db.session.commit()
-    session['user_id'] = user.id
+    session.clear(); session['user_id'] = user.id
     return jsonify({'user': user_payload(user)}), 201
 
 @auth_bp.post('/login')
@@ -32,7 +32,7 @@ def login():
     user = User.query.filter_by(email=data.get('email', '').strip().lower()).first()
     if not user or not check_password_hash(user.password_hash, data.get('password', '')):
         return jsonify({'error': 'Email or password is incorrect.'}), 401
-    session['user_id'] = user.id
+    session.clear(); session['user_id'] = user.id
     return jsonify({'user': user_payload(user)})
 
 @auth_bp.post('/logout')
@@ -55,6 +55,8 @@ def google_login():
     credential = (request.get_json(silent=True) or {}).get('credential')
     if not credential:
         return jsonify({'error': 'Google credential is required.'}), 400
+    if not GOOGLE_CLIENT_ID:
+        return jsonify({'error': 'Google sign-in is not configured.'}), 503
     try:
         identity = id_token.verify_oauth2_token(credential, google_requests.Request(), GOOGLE_CLIENT_ID)
     except ValueError:
@@ -66,5 +68,5 @@ def google_login():
     if not user:
         user = User(email=email, password_hash=generate_password_hash(os.urandom(32).hex()))
         db.session.add(user); db.session.commit()
-    session['user_id'] = user.id
+    session.clear(); session['user_id'] = user.id
     return jsonify({'user': user_payload(user)})

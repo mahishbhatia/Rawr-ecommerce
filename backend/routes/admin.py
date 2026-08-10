@@ -13,8 +13,8 @@ from models.admin import AdminSetting, SupportTicket
 from models.order import Order
 
 admin_bp = Blueprint('admin', __name__)
-OTP_EMAIL = os.getenv('ADMIN_OTP_EMAIL', 'hemantkhurana2004@gmail.com')
-DEFAULT_PASSWORD = 'rawrxbizmind'
+OTP_EMAIL = os.getenv('ADMIN_OTP_EMAIL')
+INITIAL_PASSWORD = os.getenv('ADMIN_INITIAL_PASSWORD')
 
 
 def setting(key, default=None):
@@ -54,10 +54,12 @@ def order_payload(order):
 def login():
     password = (request.get_json(silent=True) or {}).get('password', '')
     password_hash = setting('password_hash')
-    valid = check_password_hash(password_hash, password) if password_hash else secrets.compare_digest(password, DEFAULT_PASSWORD)
+    if not password_hash and not INITIAL_PASSWORD:
+        return jsonify({'error': 'Admin sign-in is not configured.'}), 503
+    valid = check_password_hash(password_hash, password) if password_hash else secrets.compare_digest(password, INITIAL_PASSWORD)
     if not valid:
         return jsonify({'error': 'Incorrect admin password.'}), 401
-    session['admin_authenticated'] = True
+    session.clear(); session['admin_authenticated'] = True
     return jsonify({'authenticated': True})
 
 
@@ -114,6 +116,8 @@ def analytics():
 
 @admin_bp.post('/password/otp')
 def request_otp():
+    if not OTP_EMAIL:
+        return jsonify({'error': 'Admin OTP recipient is not configured.'}), 503
     code = f'{secrets.randbelow(1000000):06d}'
     set_setting('otp_hash', generate_password_hash(code))
     set_setting('otp_expires', (datetime.utcnow() + timedelta(minutes=10)).isoformat())

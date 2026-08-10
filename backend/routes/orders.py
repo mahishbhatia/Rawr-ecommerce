@@ -55,8 +55,9 @@ def verify_checkout():
 @orders_bp.post('/')
 def create_order():
     data = request.get_json(silent=True) or {}
-    email = data.get('email')
-    if not email: return jsonify({'error': 'email is required'}), 400
+    user = db.session.get(User, session.get('user_id'))
+    if not user: return jsonify({'error': 'Please sign in before creating an order.'}), 401
+    email = user.email
     quantity = max(1, int(data.get('quantity', 1)))
     order = Order(email=email, quantity=quantity, status='pending', customer_name=data.get('customerName', ''), phone=data.get('phone', ''), address=data.get('address', ''), total=quantity * 120 + SHIPPING_FEE)
     db.session.add(order); db.session.commit()
