@@ -1,6 +1,6 @@
 import os
 from uuid import uuid4
-from flask import Blueprint, jsonify, request, session
+from flask import Blueprint, current_app, jsonify, request, session
 from extensions import db
 from models.order import Order
 from models.user import User
@@ -29,8 +29,12 @@ def create_checkout():
         import razorpay
         receipt = f'rawr-{user.id}-{uuid4().hex[:20]}'
         gateway_order = razorpay.Client(auth=(key_id, key_secret)).order.create({'amount': (quantity * 120 + SHIPPING_FEE) * 100, 'currency': 'INR', 'receipt': receipt})
-    except Exception:
-        return jsonify({'error': 'Unable to start Razorpay checkout. Please try again.'}), 502
+    except Exception as error:
+        current_app.logger.exception('Razorpay order creation failed for user %s', user.id)
+        reason = getattr(error, 'reason', '')
+        if reason:
+            return jsonify({'error': f'Razorpay could not create the order: {reason}'}), 502
+        return jsonify({'error': 'Razorpay could not create the order. Verify that the deployed RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are a matching active test or live pair.'}), 502
     return jsonify({'keyId': key_id, 'orderId': gateway_order['id'], 'amount': gateway_order['amount'], 'currency': 'INR', 'quantity': quantity, 'shipping': SHIPPING_FEE})
 
 @orders_bp.post('/checkout/verify')

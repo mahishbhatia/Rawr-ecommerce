@@ -4,7 +4,7 @@ from collections import Counter
 from datetime import datetime, timedelta
 
 import requests
-from flask import Blueprint, jsonify, request, session
+from flask import Blueprint, current_app, jsonify, request, session
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from extensions import db
@@ -12,7 +12,7 @@ from models.admin import AdminSetting, SupportTicket
 from models.order import Order
 
 admin_bp = Blueprint('admin', __name__)
-OTP_EMAIL = os.getenv('ADMIN_OTP_EMAIL')
+OTP_EMAIL = 'rawr.bizmind@gmail.com'
 INITIAL_PASSWORD = os.getenv('ADMIN_INITIAL_PASSWORD')
 
 
@@ -134,8 +134,16 @@ def request_otp():
             timeout=15,
         )
         response.raise_for_status()
-    except requests.RequestException:
-        return jsonify({'error': 'Unable to send the OTP email. Check the Resend configuration.'}), 502
+    except requests.RequestException as error:
+        detail = ''
+        if error.response is not None:
+            try:
+                detail = error.response.json().get('message', '')
+            except ValueError:
+                detail = error.response.text[:200]
+        current_app.logger.exception('Resend OTP delivery failed')
+        suffix = f' Resend said: {detail}' if detail else ''
+        return jsonify({'error': f'Unable to send the OTP email. Check RESEND_API_KEY and the verified RESEND_FROM sender.{suffix}'}), 502
     set_setting('otp_hash', generate_password_hash(code))
     set_setting('otp_expires', (datetime.utcnow() + timedelta(minutes=10)).isoformat())
     db.session.commit()

@@ -1,6 +1,6 @@
 <script setup>
 import desktopIngredientsVideo from '../../../assets/desktop/ingbg.mp4'
-import mobileIngredientsVideo from '../../../assets/mobile/ingbg.MP4'
+import mobileIngredientsVideo from '../../../assets/mobile/ingbg.mp4'
 
 const ingredients = ['Cocoa', 'Honey', 'Whey', 'Cashews', 'Almonds', 'Dates', 'Coconut oil']
 const ingredientLoop = [...ingredients, ...ingredients]
