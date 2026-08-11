@@ -1,13 +1,13 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-const authenticated=ref(false),password=ref(''),error=ref(''),orders=ref([]),analytics=ref(null),forgotPassword=ref(false),otp=ref(''),newPassword=ref(''),otpNote=ref('')
+const authenticated=ref(false),password=ref(''),error=ref(''),orders=ref([]),analytics=ref(null),forgotPassword=ref(false),otp=ref(''),newPassword=ref(''),otpNote=ref(''),otpSending=ref(false)
 const request=async(path,options={})=>{const response=await fetch(path,{credentials:'same-origin',headers:{'Content-Type':'application/json'},...options}),data=response.status===204?null:await response.json();if(!response.ok)throw new Error(data.error||'Something went wrong.');return data}
 const load=async()=>{orders.value=(await request('/api/admin/orders')).orders;analytics.value=await request('/api/admin/analytics')}
 const login=async()=>{error.value='';try{await request('/api/admin/login',{method:'POST',body:JSON.stringify({password:password.value})});authenticated.value=true;await load()}catch(e){error.value=e.message}}
 const logout=async()=>{await request('/api/admin/logout',{method:'POST'});authenticated.value=false}
 const changeStatus=async(order,status)=>{await request(`/api/admin/orders/${order.id}`,{method:'PATCH',body:JSON.stringify({status})});await load()}
 const closeTicket=async ticket=>{await request(`/api/admin/tickets/${ticket.id}`,{method:'PATCH',body:JSON.stringify({status:'resolved'})});await load()}
-const sendOtp=async()=>{otpNote='';try{const data=await request('/api/admin/password/otp',{method:'POST'});otpNote=`A six-digit OTP was sent to ${data.sentTo}.`}catch(e){otpNote=e.message}}
+const sendOtp=async()=>{if(otpSending.value)return;otpSending.value=true;otpNote='Sending OTP…';try{const data=await request('/api/admin/password/otp',{method:'POST'});otpNote=`A six-digit OTP was sent to ${data.sentTo}.`}catch(e){otpNote=`OTP was not sent: ${e.message}`}finally{otpSending.value=false}}
 const changePassword=async()=>{try{await request('/api/admin/password',{method:'POST',body:JSON.stringify({otp:otp.value,password:newPassword.value})});otpNote='Password changed. You can now sign in.';password.value='';otp.value='';newPassword.value='';forgotPassword.value=false}catch(e){otpNote=e.message}}
 const currentStatus=order=>order.status==='complete'?'complete':'pending'
 const openTickets=computed(()=>orders.value.flatMap(order=>order.tickets).filter(ticket=>ticket.status==='open').length)

@@ -31,7 +31,7 @@ def create_checkout():
         gateway_order = razorpay.Client(auth=(key_id, key_secret)).order.create({'amount': (quantity * 120 + SHIPPING_FEE) * 100, 'currency': 'INR', 'receipt': receipt})
     except Exception as error:
         current_app.logger.exception('Razorpay order creation failed for user %s', user.id)
-        reason = getattr(error, 'reason', '')
+        reason = getattr(error, 'reason', '') or str(error)
         if reason:
             return jsonify({'error': f'Razorpay could not create the order: {reason}'}), 502
         return jsonify({'error': 'Razorpay could not create the order. Verify that the deployed RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are a matching active test or live pair.'}), 502
