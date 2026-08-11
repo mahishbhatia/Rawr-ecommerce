@@ -2,22 +2,22 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import slideOne from '../../../assets/desktop/hero-slide-1.webp'
 import slideTwo from '../../../assets/desktop/hero-slide-2.webp'
-defineEmits(['navigate'])
+import mobileSlideOne from '../../../assets/mobile/hero slide -1.png'
+import mobileSlideTwo from '../../../assets/mobile/hero-slide-2.webp'
 
-const slides = [
-  { image: slideOne, position: 'left top' },
-  { image: slideTwo, position: 'left top' },
-]
-const active = ref(0)
-const hovering = ref(false)
-const pointer = ref({ x: 50, y: 50 })
-let timer
-const current = computed(() => slides[active.value])
-const restart = () => { clearInterval(timer); timer = setInterval(() => { active.value = (active.value + 1) % slides.length }, 5000) }
-const select = (index) => { active.value = (index + slides.length) % slides.length; restart() }
-const moveHalo = (event) => { const bounds = event.currentTarget.getBoundingClientRect(); pointer.value = { x: event.clientX - bounds.left, y: event.clientY - bounds.top } }
-onMounted(() => { slides.forEach(({ image }) => { const preload = new Image(); preload.src = image }); restart() })
-onBeforeUnmount(() => clearInterval(timer))
+defineEmits(['navigate'])
+const desktopSlides = [{ image: slideOne, position: 'center' }, { image: slideTwo, position: 'center' }]
+const mobileSlides = [{ image: mobileSlideOne, position: 'left top' }, { image: mobileSlideTwo, position: 'left top' }]
+const active = ref(0), compact = ref(false), hovering = ref(false), pointer = ref({ x: 50, y: 50 })
+let timer, compactQuery
+const slides = computed(() => compact.value ? mobileSlides : desktopSlides)
+const current = computed(() => slides.value[active.value])
+const restart = () => { clearInterval(timer); timer = setInterval(() => { active.value = (active.value + 1) % slides.value.length }, 5000) }
+const select = index => { active.value = (index + slides.value.length) % slides.value.length; restart() }
+const moveHalo = event => { const bounds = event.currentTarget.getBoundingClientRect(); pointer.value = { x: event.clientX - bounds.left, y: event.clientY - bounds.top } }
+const updateCompact = () => { compact.value = compactQuery.matches }
+onMounted(() => { [...desktopSlides, ...mobileSlides].forEach(({ image }) => { const preload = new Image(); preload.src = image }); compactQuery = window.matchMedia('(max-width: 900px)'); updateCompact(); compactQuery.addEventListener('change', updateCompact); restart() })
+onBeforeUnmount(() => { clearInterval(timer); compactQuery?.removeEventListener('change', updateCompact) })
 </script>
 
 <template>
@@ -30,4 +30,6 @@ onBeforeUnmount(() => clearInterval(timer))
   </section>
 </template>
 
-<style scoped>.hero{height:calc(100svh - 65px);min-height:0;position:relative;overflow:hidden;display:flex;align-items:center;background:#15110f}.slides,.backdrop{position:absolute;inset:0}.backdrop{background-size:cover;background-repeat:no-repeat;opacity:0;transform:scale(1.025);transition:opacity .65s ease,transform 4.8s ease;will-change:opacity,transform}.backdrop.active{opacity:1;transform:scale(1)}.content{position:relative;z-index:2;margin-left:clamp(24px,7vw,130px);width:min(550px,calc(100% - 48px));padding-top:20px}.content h1{white-space:pre-line;font-size:clamp(3.7rem,8vw,7.4rem);line-height:.84;letter-spacing:-.09em;margin:16px 0 24px}.content p:not(.eyebrow){font-size:1.08rem;color:#dedede;line-height:1.6}.mouse-halo{position:absolute;z-index:1;width:170px;height:170px;border-radius:50%;transform:translate(-50%,-50%);background:rgba(241,90,36,.7);filter:blur(35px);mix-blend-mode:screen;opacity:0;pointer-events:none;transition:opacity .18s ease}.mouse-halo.visible{opacity:.8}.hero-footer{position:absolute;z-index:3;right:clamp(20px,4vw,64px);bottom:28px;left:clamp(24px,7vw,130px);display:flex;align-items:center;justify-content:space-between;gap:24px}.hero-pagination{display:flex;align-items:center;gap:24px}.slide-controls{display:flex;gap:10px}.slide-controls button{width:47px;height:47px;border-radius:50%;border:1px solid rgba(255,255,255,.75);background:rgba(10,10,10,.26);color:#fff;font-size:1.35rem;cursor:pointer;transition:background .2s ease,border-color .2s ease}.slide-controls button:hover{background:#f15a24;border-color:#f15a24}.pager{display:flex;gap:10px}.pager button{width:12px;height:12px;border-radius:50%;padding:0;border:1px solid #f3f3f3;background:transparent;cursor:pointer}.pager button.selected{background:#f15a24;border-color:#f15a24;transform:scale(1.18)}.scroll{position:absolute;z-index:3;bottom:25px;left:50%;transform:translateX(-50%);font-size:.62rem;letter-spacing:.15em;color:#bbb}.scroll span{color:#f15a24;font-size:1.3rem;margin-left:8px}@media(max-width:700px){.hero{height:calc(100svh - 62px);min-height:540px}.content{margin-left:24px;padding-top:0}.content h1{font-size:clamp(3rem,14vw,4.4rem);line-height:.88}.content p:not(.eyebrow){font-size:.96rem;max-width:31rem}.hero-footer{left:24px;right:20px;bottom:64px}.shop-button{padding:12px 17px}.hero-pagination{gap:12px}.slide-controls{gap:7px}.slide-controls button{width:40px;height:40px}.pager{gap:7px}.scroll{font-size:.52rem}.mouse-halo{display:none}}@media(max-width:430px){.hero{min-height:510px}.hero-footer{align-items:flex-end}.hero-pagination{flex-direction:column;align-items:flex-end}.scroll{left:auto;right:20px;transform:none;bottom:18px}}@media(prefers-reduced-motion:reduce){.backdrop{transition:none}.mouse-halo{display:none}}</style>
+<style scoped>
+.hero{height:clamp(420px,42vw,680px);position:relative;overflow:hidden;display:flex;align-items:center;background:#15110f}.slides,.backdrop{position:absolute;inset:0}.backdrop{background-size:cover;background-repeat:no-repeat;opacity:0;transition:opacity .65s ease;will-change:opacity}.backdrop.active{opacity:1}.content{position:relative;z-index:2;margin-left:clamp(24px,7vw,130px);width:min(550px,calc(100% - 48px));padding-top:20px}.content h1{white-space:pre-line;font-size:clamp(3.7rem,8vw,7.4rem);line-height:.84;letter-spacing:-.09em;margin:16px 0 24px}.content p:not(.eyebrow){font-size:1.08rem;color:#dedede;line-height:1.6}.mouse-halo{position:absolute;z-index:1;width:170px;height:170px;border-radius:50%;transform:translate(-50%,-50%);background:rgba(241,90,36,.7);filter:blur(35px);mix-blend-mode:screen;opacity:0;pointer-events:none;transition:opacity .18s ease}.mouse-halo.visible{opacity:.8}.hero-footer{position:absolute;z-index:3;right:clamp(20px,4vw,64px);bottom:28px;left:clamp(24px,7vw,130px);display:flex;align-items:center;justify-content:space-between;gap:24px}.hero-pagination{display:flex;align-items:center;gap:24px}.slide-controls{display:flex;gap:10px}.slide-controls button{width:47px;height:47px;border-radius:50%;border:1px solid rgba(255,255,255,.75);background:rgba(10,10,10,.26);color:#fff;font-size:1.35rem;cursor:pointer}.pager{display:flex;gap:10px}.pager button{width:12px;height:12px;border-radius:50%;padding:0;border:1px solid #f3f3f3;background:transparent;cursor:pointer}.pager button.selected{background:#f15a24;border-color:#f15a24;transform:scale(1.18)}.scroll{position:absolute;z-index:3;bottom:25px;left:50%;transform:translateX(-50%);font-size:.62rem;letter-spacing:.15em;color:#bbb}.scroll span{color:#f15a24;font-size:1.3rem;margin-left:8px}@media(max-width:900px){.hero{height:auto;min-height:0;aspect-ratio:6750 / 6075;align-items:flex-start}.content{margin-left:20px;padding-top:18px}.content h1{font-size:clamp(2rem,8vw,4rem);line-height:.9}.content p:not(.eyebrow){font-size:.88rem;max-width:26rem}.hero-footer{left:20px;right:16px;bottom:18px}.shop-button{padding:10px 15px;font-size:.72rem}.hero-pagination{gap:10px}.slide-controls{gap:6px}.slide-controls button{width:34px;height:34px;font-size:1rem}.pager{gap:6px}.pager button{width:8px;height:8px}.scroll,.mouse-halo{display:none}}@media(prefers-reduced-motion:reduce){.backdrop{transition:none}}
+</style>

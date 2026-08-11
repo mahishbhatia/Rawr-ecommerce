@@ -1,4 +1,5 @@
 import os
+from uuid import uuid4
 from flask import Blueprint, jsonify, request, session
 from extensions import db
 from models.order import Order
@@ -26,7 +27,8 @@ def create_checkout():
         return jsonify({'error': 'Razorpay is not configured. Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to the server environment.'}), 503
     try:
         import razorpay
-        gateway_order = razorpay.Client(auth=(key_id, key_secret)).order.create({'amount': (quantity * 120 + SHIPPING_FEE) * 100, 'currency': 'INR', 'receipt': f'rawr-{user.id}-{quantity}'})
+        receipt = f'rawr-{user.id}-{uuid4().hex[:20]}'
+        gateway_order = razorpay.Client(auth=(key_id, key_secret)).order.create({'amount': (quantity * 120 + SHIPPING_FEE) * 100, 'currency': 'INR', 'receipt': receipt})
     except Exception:
         return jsonify({'error': 'Unable to start Razorpay checkout. Please try again.'}), 502
     return jsonify({'keyId': key_id, 'orderId': gateway_order['id'], 'amount': gateway_order['amount'], 'currency': 'INR', 'quantity': quantity, 'shipping': SHIPPING_FEE})
