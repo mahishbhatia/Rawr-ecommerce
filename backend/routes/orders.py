@@ -22,6 +22,10 @@ def create_checkout():
     user, quantity = cart_quantity()
     if not user: return jsonify({'error': 'Please sign in before checkout.'}), 401
     if not quantity: return jsonify({'error': 'Your cart is empty.'}), 400
+    data = request.get_json(silent=True) or {}
+    phone, address = data.get('phone', '').strip(), data.get('address', '').strip()
+    if len(phone.replace('+', '').replace(' ', '').replace('-', '')) < 10 or len(address) < 12:
+        return jsonify({'error': 'Please provide a valid mobile number and delivery address before payment.'}), 400
     key_id, key_secret = os.getenv('RAZORPAY_KEY_ID'), os.getenv('RAZORPAY_KEY_SECRET')
     if not key_id or not key_secret:
         return jsonify({'error': 'Razorpay is not configured. Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to the server environment.'}), 503
@@ -35,15 +39,31 @@ def create_checkout():
         if reason:
             return jsonify({'error': f'Razorpay could not create the order: {reason}'}), 502
         return jsonify({'error': 'Razorpay could not create the order. Verify that the deployed RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are a matching active test or live pair.'}), 502
-    return jsonify({'keyId': key_id, 'orderId': gateway_order['id'], 'amount': gateway_order['amount'], 'currency': 'INR', 'quantity': quantity, 'shipping': SHIPPING_FEE})
+    customer_name = ' '.join(address.split(',', 1)[0].split())
+    order = Order(email=user.email, quantity=quantity, status='payment_pending', phone=phone, address=address, customer_name=customer_name, total=quantity * 120 + SHIPPING_FEE)
+    try:
+        db.session.add(order)
+        db.session.commit()
+    except Exception as error:
+        db.session.rollback()
+        current_app.logger.exception('Creating local Razorpay order failed for user %s', user.id)
+        return jsonify({'error': f'Unable to prepare the order for payment: {str(error)}'}), 500
+    session['checkout_gateway_order_id'] = gateway_order['id']
+    session['checkout_local_order_id'] = order.id
+    return jsonify({'keyId': key_id, 'orderId': gateway_order['id'], 'localOrderId': order.id, 'amount': gateway_order['amount'], 'currency': 'INR', 'quantity': quantity, 'shipping': SHIPPING_FEE})
 
 @orders_bp.post('/checkout/verify')
 def verify_checkout():
-    user, quantity = cart_quantity()
-    if not user or not quantity: return jsonify({'error': 'Your checkout session has expired.'}), 400
+    user, _ = cart_quantity()
+    if not user: return jsonify({'error': 'Your checkout session has expired.'}), 400
     data = request.get_json(silent=True) or {}
-    phone, address = data.get('phone', '').strip(), data.get('address', '').strip()
-    if len(phone) < 10 or len(address) < 12: return jsonify({'error': 'Please provide a valid mobile number and delivery address.'}), 400
+    local_order_id = data.get('localOrderId')
+    expected_gateway_order_id = session.get('checkout_gateway_order_id')
+    if not local_order_id or local_order_id != session.get('checkout_local_order_id') or data.get('razorpay_order_id') != expected_gateway_order_id:
+        return jsonify({'error': 'Your checkout session does not match this payment. Please contact support with your Razorpay payment ID.'}), 400
+    order = db.session.get(Order, local_order_id)
+    if not order or order.email != user.email or order.status != 'payment_pending':
+        return jsonify({'error': 'This checkout is no longer available for confirmation.'}), 400
     key_secret = os.getenv('RAZORPAY_KEY_SECRET')
     try:
         import razorpay
@@ -52,12 +72,12 @@ def verify_checkout():
         current_app.logger.exception('Razorpay payment verification failed for user %s', user.id)
         reason = getattr(error, 'reason', '') or str(error)
         return jsonify({'error': f'Payment verification failed: {reason}'}), 400
-    customer_name = ' '.join(address.split(',', 1)[0].split())
-    order = Order(email=user.email, quantity=quantity, status='pending', phone=phone, address=address, customer_name=customer_name, total=quantity * 120 + SHIPPING_FEE)
     try:
-        db.session.add(order)
+        order.status = 'pending'
         from models.cart import CartItem
         CartItem.query.filter_by(email=user.email).delete()
+        session.pop('checkout_gateway_order_id', None)
+        session.pop('checkout_local_order_id', None)
         db.session.commit()
     except Exception as error:
         db.session.rollback()
