@@ -48,14 +48,21 @@ def verify_checkout():
     try:
         import razorpay
         razorpay.Client(auth=(os.getenv('RAZORPAY_KEY_ID'), key_secret)).utility.verify_payment_signature({'razorpay_order_id': data['razorpay_order_id'], 'razorpay_payment_id': data['razorpay_payment_id'], 'razorpay_signature': data['razorpay_signature']})
-    except Exception:
-        return jsonify({'error': 'Payment verification failed.'}), 400
+    except Exception as error:
+        current_app.logger.exception('Razorpay payment verification failed for user %s', user.id)
+        reason = getattr(error, 'reason', '') or str(error)
+        return jsonify({'error': f'Payment verification failed: {reason}'}), 400
     customer_name = ' '.join(address.split(',', 1)[0].split())
     order = Order(email=user.email, quantity=quantity, status='pending', phone=phone, address=address, customer_name=customer_name, total=quantity * 120 + SHIPPING_FEE)
-    db.session.add(order)
-    from models.cart import CartItem
-    CartItem.query.filter_by(email=user.email).delete()
-    db.session.commit()
+    try:
+        db.session.add(order)
+        from models.cart import CartItem
+        CartItem.query.filter_by(email=user.email).delete()
+        db.session.commit()
+    except Exception as error:
+        db.session.rollback()
+        current_app.logger.exception('Saving paid order failed for user %s', user.id)
+        return jsonify({'error': f'Payment succeeded, but saving the order failed: {str(error)}'}), 500
     return jsonify({'id': order.id, 'status': order.status, 'shipping': SHIPPING_FEE})
 
 @orders_bp.post('/')
