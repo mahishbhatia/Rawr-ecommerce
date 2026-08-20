@@ -2,7 +2,7 @@ name: Keep Render awake
 
 on:
   schedule:
-    # Every ten minutes, offset from the top of the hour to avoid schedule congestion.
+    # Runs every 10 minutes with an offset to avoid GitHub Actions traffic spikes
     - cron: '7,17,27,37,47,57 * * * *'
   workflow_dispatch:
 
@@ -16,5 +16,5 @@ jobs:
         env:
           RENDER_APP_URL: ${{ secrets.RENDER_APP_URL }}
         run: |
-          test -n "rawrbizmind.in/healthz"
+          test -n "$RENDER_APP_URL" || { echo "RENDER_APP_URL secret is not set"; exit 1; }
           curl --fail --silent --show-error --retry 2 --max-time 30 "$RENDER_APP_URL/healthz"
