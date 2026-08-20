@@ -2,8 +2,9 @@ name: Keep Render awake
 
 on:
   schedule:
-    # Runs every 10 minutes with an offset to avoid GitHub Actions traffic spikes
-    - cron: '7,17,27,37,47,57 * * * *'
+    # Queues every 5 minutes. 
+    # Minimum allowed by GitHub Actions to help beat the 15-minute Render sleep timer.
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 permissions: {}
